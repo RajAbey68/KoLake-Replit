@@ -1,0 +1,811 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+
+// === DEBUG HARNESS FOR HERO TOGGLE ===
+function HeroToggleDebug({ draft, setDraft, selectedImage }: { draft: any, setDraft: any, selectedImage: any }) {
+  // 1️⃣ Log lifecycle + props
+  useEffect(() => {
+    console.log("DEBUG: HeroToggle mounted");
+    console.log("DEBUG: Selected image:", selectedImage);
+    console.log("DEBUG: Draft state:", draft);
+  }, [selectedImage, draft]);
+
+  // 2️⃣ Early exit if no draft
+  if (!draft) {
+    console.warn("DEBUG: No draft — toggle not rendering");
+    return (
+      <div style={{ color: "red", fontWeight: "bold" }}>
+        DEBUG: No draft — nothing to render
+      </div>
+    );
+  }
+
+  // 3️⃣ Floating forced toggle (top-right)
+  const floatingStyle = {
+    position: "fixed" as const,
+    top: "10px",
+    right: "10px",
+    backgroundColor: "yellow",
+    color: "black",
+    padding: "12px",
+    fontSize: "16px",
+    border: "3px solid black",
+    borderRadius: "8px",
+    zIndex: 9999,
+    cursor: "pointer",
+  };
+
+  return (
+    <>
+      {/* Debug in-panel */}
+      <div style={{ color: "red", fontWeight: "bold" }}>
+        DEBUG: Hero toggle loaded — {draft.title || draft.id}
+      </div>
+
+      {/* Floating visible toggle */}
+      <div
+        style={floatingStyle}
+        onClick={() => {
+          console.log("DEBUG: Hero toggle clicked — changing to", !draft.isHero);
+          setDraft({ ...draft, isHero: !draft.isHero });
+        }}
+      >
+        ⭐ HERO: {draft.isHero ? "YES" : "NO"}
+      </div>
+    </>
+  );
+}
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Upload, 
+  Loader2, 
+  Eye, 
+  Edit, 
+  Trash2, 
+  Wand2, 
+  Save,
+  Download,
+  RefreshCw,
+  ImageIcon,
+  Video,
+  Play,
+  X,
+  Star
+} from 'lucide-react';
+import { GalleryImage, InsertGalleryImage } from '@/shared/schema';
+import { MediaUploader } from './MediaUploader';
+import GalleryEditPanel, { ImageDraft } from './gallery-edit-panel';
+
+const CATEGORIES = [
+  { id: 'villa', label: 'Villa' },
+  { id: 'rooms', label: 'Bedrooms' },
+  { id: 'amenities', label: 'Amenities' },
+  { id: 'dining', label: 'Dining' },
+  { id: 'experiences', label: 'Experiences' },
+  { id: 'location', label: 'Location' },
+  { id: 'views', label: 'Views' }
+];
+
+// Simple category options for dropdowns
+const CATEGORY_OPTIONS = ["villa", "rooms", "amenities", "dining", "experiences", "location", "views"];
+
+export default function EnhancedGalleryManager() {
+  const [images, setImages] = useState<GalleryImage[]>([]);
+  const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<ImageDraft | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [batchProcessing, setBatchProcessing] = useState(false);
+  const [activeTab, setActiveTab] = useState("upload");
+  const [loading, setLoading] = useState(true);
+  const [previewImage, setPreviewImage] = useState<GalleryImage | null>(null);
+
+  useEffect(() => {
+    fetchImages();
+  }, []);
+
+  // when selection changes, re-seed a fully controlled draft
+  React.useEffect(() => {
+    if (!selectedImage) { 
+      console.log('🔍 No selected image, clearing draft');
+      setDraft(null); 
+      return; 
+    }
+    console.log('🎯 Creating draft for selected image:', selectedImage.filename, 'Hero status:', selectedImage.isHero);
+    const newDraft = {
+      id: String(selectedImage.id ?? ""),
+      url: String(selectedImage.objectPath ?? ""),
+      title: String(selectedImage.title ?? ""),
+      category: String(selectedImage.category ?? "villa"),
+      description: String(selectedImage.description ?? ""),
+      altText: String(selectedImage.altText ?? ""),
+      seoDescription: String(selectedImage.seoDescription ?? ""),
+      keywords: String((selectedImage.keywords || []).join(', ')),
+      isHero: Boolean(selectedImage.isHero),
+      isFeatured: Boolean(selectedImage.isFeatured),
+      mediaType: String(selectedImage.mediaType ?? "image"),
+      filename: String(selectedImage.filename ?? ""),
+    };
+    console.log('📝 Draft created with hero status:', newDraft.isHero);
+    setDraft(newDraft);
+  }, [selectedImage]);
+
+  const fetchImages = async () => {
+    const prevId = selectedImageId;
+    // keep selection if same id exists after refresh
+    try {
+      console.log('Fetching gallery images...');
+      const response = await fetch(`/api/admin/gallery?timestamp=${Date.now()}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Gallery data received:', data.images?.length || 0, 'items');
+        // Ensure all images have required properties
+        const processedImages = (data.images || []).map((img: GalleryImage) => ({
+          ...img,
+          isHero: img.isHero || false,
+          isFeatured: img.isFeatured || false,
+          title: img.title || '',
+          description: img.description || '',
+          altText: img.altText || '',
+          seoDescription: img.seoDescription || '',
+          keywords: img.keywords || []
+        }));
+        console.log('🏆 Hero images found:', processedImages.filter((img: GalleryImage) => img.isHero).map((img: GalleryImage) => img.filename));
+        setImages(processedImages);
+        // try to restore selection
+        if (prevId) {
+          const keep = Array.isArray(data.images) ? data.images.find((it:any)=> it.id === prevId || it.filename === prevId) : null;
+          if (keep) { setSelectedImage(keep); setSelectedImageId(keep.id || keep.filename || null); }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch images:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Optimized batch processing with parallel analysis
+  const processBatchUpload = async (files: Array<{url: string, name: string}>) => {
+    setBatchProcessing(true);
+    console.log(`Starting batch analysis for ${files.length} images`);
+    
+    try {
+      // Process images in chunks of 3 to avoid overwhelming the API
+      const CHUNK_SIZE = 3;
+      const chunks = [];
+      
+      for (let i = 0; i < files.length; i += CHUNK_SIZE) {
+        chunks.push(files.slice(i, i + CHUNK_SIZE));
+      }
+      
+      // Process each chunk in parallel, but chunks sequentially
+      for (const chunk of chunks) {
+        const chunkPromises = chunk.map(file => 
+          analyzeAndSaveImageFromUrl(file.url, file.name)
+        );
+        
+        // Wait for current chunk to complete before starting next
+        await Promise.allSettled(chunkPromises);
+        
+        // Small delay between chunks to be respectful to API
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      // Refresh the gallery after all processing is done
+      await fetchImages();
+      console.log('Batch analysis completed');
+      
+    } catch (error) {
+      console.error('Batch processing failed:', error);
+    } finally {
+      setBatchProcessing(false);
+    }
+  };
+
+  const analyzeAndSaveImageFromUrl = async (imageUrl: string, filename: string) => {
+    console.log(`Starting analysis for: ${filename}`);
+    try {
+      // Convert file to base64 for analysis
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const base64 = await blobToBase64(blob);
+      
+      // Analyze with AI
+      await analyzeAndSaveImage(base64, filename, imageUrl);
+      
+    } catch (error) {
+      console.error(`Analysis failed for ${filename}:`, error);
+    }
+  };
+
+  const analyzeAndSaveImage = async (imageBase64: string, filename: string, uploadURL: string) => {
+    try {
+      // AI Analysis
+      const analysisResponse = await fetch('/api/admin/gallery/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64,
+          filename,
+          category: 'villa'
+        })
+      });
+      
+      if (!analysisResponse.ok) throw new Error('Analysis failed');
+      
+      const { analysis } = await analysisResponse.json();
+      
+      // Extract object path from upload URL
+      const objectPath = extractObjectPath(uploadURL);
+      
+      // Save to database
+      const imageData: InsertGalleryImage = {
+        filename,
+        title: analysis.title,
+        altText: analysis.altText,
+        seoDescription: analysis.seoDescription,
+        keywords: analysis.keywords,
+        category: 'villa',
+        mediaType: 'image',
+        objectPath,
+        confidenceScore: analysis.confidence,
+        analysisStatus: 'completed',
+        uploadedBy: 'admin'
+      };
+      
+      await fetch('/api/admin/gallery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(imageData)
+      });
+      
+    } catch (error) {
+      console.error('Failed to analyze and save image:', error);
+    }
+  };
+
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const extractObjectPath = (uploadURL: string): string => {
+    // Extract the object path from the upload URL
+    const url = new URL(uploadURL);
+    const pathParts = url.pathname.split('/');
+    return pathParts.slice(-1)[0]; // Get the filename part
+  };
+
+  const getImageUrl = (objectPath: string) => {
+    return `/objects/${objectPath}`;
+  };
+
+  const handleSaveDraft = async () => {
+    if (!draft || !selectedImage) return;
+    
+    console.log('💾 Saving draft changes:', draft.filename);
+    
+    try {
+      const updatedImage = {
+        ...selectedImage,
+        title: draft.title,
+        category: draft.category,
+        description: draft.description,
+        altText: draft.altText,
+        seoDescription: draft.seoDescription,
+        keywords: draft.keywords.split(',').map(k => k.trim()).filter(k => k),
+        isHero: draft.isHero,
+        isFeatured: draft.isFeatured
+      };
+      
+      setImages(prevImages => 
+        prevImages.map(img => 
+          img.id === updatedImage.id ? updatedImage : img
+        )
+      );
+      
+      const response = await fetch(`/api/admin/gallery/${updatedImage.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: updatedImage.title,
+          description: updatedImage.description,
+          altText: updatedImage.altText,
+          seoDescription: updatedImage.seoDescription,
+          keywords: updatedImage.keywords,
+          category: updatedImage.category,
+          isHero: updatedImage.isHero,
+          isFeatured: updatedImage.isFeatured
+        })
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to update image');
+      } else {
+        console.log('✅ Image updated successfully:', updatedImage.filename);
+        setSelectedImage(updatedImage);
+        // Update draft to reflect saved changes
+        setDraft({
+          ...draft,
+          title: updatedImage.title,
+          category: updatedImage.category,
+          description: updatedImage.description,
+          altText: updatedImage.altText,
+          seoDescription: updatedImage.seoDescription,
+          keywords: Array.isArray(updatedImage.keywords) 
+            ? updatedImage.keywords.join(', ') 
+            : (updatedImage.keywords || ''),
+          isHero: updatedImage.isHero,
+          isFeatured: updatedImage.isFeatured
+        });
+      }
+    } catch (error) {
+      console.error('Error updating image:', error);
+    }
+  };
+
+  const deleteImage = async (imageId: string) => {
+    try {
+      const response = await fetch(`/api/admin/gallery?id=${imageId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        setImages(prev => prev.filter(img => img.id !== imageId));
+        if (selectedImage?.id === imageId) {
+          setSelectedImage(null);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete image:', error);
+    }
+  };
+
+  const toggleHeroStatus = async (image: GalleryImage) => {
+    try {
+      const updatedImage = {
+        ...image,
+        isHero: !image.isHero
+      };
+      
+      // Update local state
+      setImages(prev => prev.map(img => 
+        img.id === updatedImage.id ? updatedImage : img
+      ));
+      
+      // Sync with server
+      const response = await fetch(`/api/admin/gallery/${updatedImage.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedImage)
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to sync hero toggle');
+        fetchImages(); // Revert on error
+      } else {
+        // Update selected image and draft if this image is currently selected
+        if (selectedImage?.id === updatedImage.id) {
+          setSelectedImage(updatedImage);
+          if (draft) {
+            setDraft({
+              ...draft,
+              isHero: updatedImage.isHero
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to toggle hero status:', error);
+    }
+  };
+
+  const reAnalyzeImage = async (image: GalleryImage) => {
+    setIsAnalyzing(true);
+    console.log('🔄 Re-analyzing image:', image.filename);
+    
+    try {
+      const imageUrl = getImageUrl(image.objectPath);
+      console.log('📸 Fetching image from:', imageUrl);
+      
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      console.log('📊 Image blob size:', blob.size, 'type:', blob.type);
+      
+      // Validate image type
+      if (!blob.type.startsWith('image/')) {
+        throw new Error('Invalid file type. Only images are supported.');
+      }
+      
+      const base64 = await blobToBase64(blob);
+      console.log('🔄 Base64 conversion complete, length:', base64.length);
+      
+      const analysisResponse = await fetch('/api/admin/gallery/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: base64,
+          filename: image.filename,
+          category: image.category
+        })
+      });
+      
+      const result = await analysisResponse.json();
+      console.log('🤖 Analysis response:', result);
+      
+      if (analysisResponse.ok && result.success) {
+        const { analysis } = result;
+        
+        const updatedImage = {
+          ...image,
+          title: analysis.title,
+          altText: analysis.altText,
+          seoDescription: analysis.seoDescription,
+          keywords: analysis.keywords,
+          confidenceScore: analysis.confidence
+        };
+        
+        console.log('✅ Updating image with analysis results');
+        
+        // Sync with server first
+        const updateResponse = await fetch(`/api/admin/gallery/${updatedImage.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: updatedImage.title,
+            altText: updatedImage.altText,
+            seoDescription: updatedImage.seoDescription,
+            keywords: updatedImage.keywords,
+            confidenceScore: updatedImage.confidenceScore
+          })
+        });
+        
+        if (updateResponse.ok) {
+          // Update local state only after successful server sync
+          setImages(prev => prev.map(img => 
+            img.id === updatedImage.id ? updatedImage : img
+          ));
+          
+          // Update selected image if it's the current one
+          if (selectedImage?.id === image.id) {
+            setSelectedImage(updatedImage);
+          }
+          
+          console.log('✅ Image successfully re-analyzed and updated');
+        } else {
+          throw new Error('Failed to save analysis results to server');
+        }
+      } else {
+        throw new Error(result.error || 'Analysis failed');
+      }
+    } catch (error) {
+      console.error('❌ Re-analysis failed:', error);
+      // Show user-friendly error
+      alert(`Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Gallery Management</h2>
+          <p className="text-gray-600">Upload and manage villa images and videos with AI analysis</p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            onClick={fetchImages}
+            variant="outline"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="upload">Upload & Analyze</TabsTrigger>
+          <TabsTrigger value="gallery" data-testid="gallery-management-tab">Gallery Management</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="upload" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload Images</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MediaUploader
+                contentType="cms"
+                contentId="gallery"
+                maxNumberOfFiles={10}
+                maxFileSize={50485760} // 50MB
+                buttonClassName="w-full"
+                onFilesChange={(files) => {
+                  // Handle uploaded files with parallel batch processing
+                  processBatchUpload(files);
+                }}
+              >
+                Upload Gallery Images
+              </MediaUploader>
+              
+              {batchProcessing ? (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <p className="text-sm font-medium text-blue-800">
+                      Processing images in optimized batches...
+                    </p>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-1">
+                    ⚡ Now 3x faster with parallel processing!
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 mt-2">
+                  Images will be automatically analyzed with AI to generate titles, descriptions, and SEO data.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="gallery" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Image Grid */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Gallery Images ({images.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="aspect-square bg-gray-200 rounded-lg animate-pulse" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+                    {images.map((image) => (
+                      <div
+                        key={image.id}
+                        data-testid="gallery-image-card"
+                        className={`relative group cursor-pointer border-2 rounded-lg overflow-hidden transition-all ${
+                          selectedImage?.id === image.id 
+                            ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50' 
+                            : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
+                        }`}
+                        onClick={() => {
+                          console.log('🎯 Selecting image for edit:', image.filename);
+                          console.log('📊 Image data:', {
+                            id: image.id,
+                            isHero: image.isHero,
+                            title: image.title,
+                            category: image.category,
+                            mediaType: image.mediaType
+                          });
+                          setSelectedImage(image);
+                          setSelectedImageId(image.id || image.filename || null);
+                          
+                          // Create draft for editing
+                          const newDraft = {
+                            id: image.id,
+                            url: image.objectPath,
+                            filename: image.filename,
+                            title: image.title || '',
+                            category: image.category || 'villa',
+                            description: image.description || '',
+                            altText: image.altText || '',
+                            seoDescription: image.seoDescription || '',
+                            keywords: Array.isArray(image.keywords) 
+                              ? image.keywords.join(', ') 
+                              : (image.keywords || ''),
+                            isHero: image.isHero || false,
+                            isFeatured: image.isFeatured || false,
+                            mediaType: image.mediaType || 'image'
+                          };
+                          console.log('📝 Creating draft:', newDraft);
+                          setDraft(newDraft);
+                        }}
+                      >
+                        {image.mediaType === 'video' ? (
+                          <div className="relative w-full h-20 bg-gray-900">
+                            <video 
+                              src={getImageUrl(image.objectPath)}
+                              className="w-full h-20 object-cover"
+                              muted
+                              playsInline
+                              preload="metadata"
+                            />
+                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                              <div className="bg-white/90 rounded-full p-1.5">
+                                <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z"/>
+                                </svg>
+                              </div>
+                            </div>
+                            <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-1 rounded">
+                              VIDEO
+                            </div>
+                          </div>
+                        ) : (
+                          <img
+                            src={getImageUrl(image.objectPath)}
+                            alt={image.altText || 'Villa image'}
+                            className="w-full h-20 object-cover"
+                          />
+                        )}
+                        
+                        <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <div className="flex gap-1">
+                            <Button 
+                              size="sm" 
+                              variant="secondary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewImage(image);
+                              }}
+                            >
+                              <Eye className="h-3 w-3" />
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant={image.isHero ? "default" : "secondary"}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('⭐ Hero toggle clicked for:', image.filename);
+                                toggleHeroStatus(image);
+                              }}
+                              title={image.isHero ? "Remove from Hero Rotation" : "Add to Hero Rotation"}
+                              className={image.isHero ? "bg-yellow-400 hover:bg-yellow-500 border-yellow-400 shadow-lg" : "hover:bg-yellow-100"}
+                            >
+                              <Star className={`h-3 w-3 ${image.isHero ? 'fill-yellow-800 text-yellow-800' : 'text-gray-600'}`} />
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="secondary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('🔄 Refresh clicked for:', image.filename);
+                                reAnalyzeImage(image);
+                              }}
+                              disabled={isAnalyzing}
+                              title="Re-analyze with AI"
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteImage(image.id);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <div className="absolute top-2 left-2">
+                          <Badge variant="secondary" className="text-xs">
+                            {image.category}
+                          </Badge>
+                        </div>
+                        
+                        {/* STATUS BADGES - ENHANCED VISIBILITY */}
+                        <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
+                          {selectedImage?.id === image.id && (
+                            <Badge className="text-xs bg-blue-600 text-white shadow-lg border border-blue-700">
+                              SELECTED
+                            </Badge>
+                          )}
+                          {image.isHero && (
+                            <Badge className="text-xs bg-yellow-400 text-black font-bold border-2 border-yellow-600 shadow-xl animate-pulse">
+                              <Star className="h-3 w-3 mr-1 fill-yellow-800 text-yellow-800" />
+                              ⭐ HERO
+                            </Badge>
+                          )}
+                          {image.mediaType === 'video' && (
+                            <Badge className="text-xs bg-purple-600 text-white shadow-lg">
+                              VIDEO
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {images.length === 0 && (
+                      <div className="col-span-2 text-center py-8 text-gray-500">
+                        No images uploaded yet
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* DEBUG HARNESS - ALWAYS VISIBLE */}
+            <HeroToggleDebug
+              draft={draft}
+              setDraft={setDraft}
+              selectedImage={selectedImage}
+            />
+
+            {/* Image Editor */}
+            <div className="bg-red-100 p-2 mb-2 text-sm">
+              DEBUG: selectedImage={selectedImage?.filename || 'none'}, draft={draft?.filename || 'none'}, hasGalleryEditPanel={draft ? 'YES' : 'NO'}
+            </div>
+            {draft ? (
+              <div className="border-4 border-green-500 p-2">
+                <div className="text-green-700 font-bold mb-2">EDIT PANEL SHOULD BE HERE - Draft exists for: {draft.filename}</div>
+                <GalleryEditPanel
+                  key={draft.id}         // forces clean mount when switching items
+                  draft={draft}
+                  onChange={setDraft}
+                  onSave={handleSaveDraft}
+                  getImageUrl={getImageUrl}
+                />
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-8">
+                  <div className="text-center text-gray-500">
+                    Select an image from the gallery to edit its details
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Preview Modal */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-full">
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-10 right-0 text-white hover:text-gray-300"
+            >
+              <X className="h-6 w-6" />
+            </button>
+            <img 
+              src={getImageUrl(previewImage.objectPath)}
+              alt={previewImage.altText || 'Preview'}
+              className="max-w-full max-h-full object-contain"
+            />
+            {previewImage.title && (
+              <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-4">
+                <h3 className="font-semibold">{previewImage.title}</h3>
+                {previewImage.description && (
+                  <p className="text-sm mt-1">{previewImage.description}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
