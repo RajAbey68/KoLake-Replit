@@ -1,0 +1,54 @@
+'use client';
+import React from 'react';
+import Link from 'next/link';
+import PhoneInputIntl from '@/components/PhoneInputIntl';
+import { waGroupOrManager } from '@/lib/whatsapp';
+
+export default function ContactPage() {
+  const [phone, setPhone] = React.useState<{dial:string; number:string}>({ dial:'+94', number:'' });
+  const invite = process.env.NEXT_PUBLIC_WHATSAPP_GROUP_INVITE || process.env.WHATSAPP_GROUP_INVITE;
+  const mgr = process.env.NEXT_PUBLIC_MANAGER_E164 || process.env.MANAGER_E164 || '+94717765780';
+  const wa = waGroupOrManager(invite, mgr, 'Hi, I have a booking enquiry');
+
+  return (
+    <main className="mx-auto max-w-5xl px-4 py-10">
+      <h1 className="text-2xl font-semibold mb-6">Contact Us</h1>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <section className="rounded-2xl border bg-white p-5">
+          <h2 className="font-semibold text-lg mb-4">Booking Enquiries</h2>
+
+          <div className="grid gap-4">
+            <PhoneInputIntl
+              label="Your phone (with country code)"
+              value={phone}
+              onChange={setPhone}
+            />
+            <div className="flex gap-3">
+              <Link
+                href={wa}
+                target="_blank"
+                className="inline-flex items-center rounded-xl bg-green-600 text-white px-4 py-2 text-sm hover:opacity-90"
+              >
+                Chat on WhatsApp
+              </Link>
+              <a
+                className="inline-flex items-center rounded-xl border px-4 py-2 text-sm hover:bg-gray-50"
+                href={`tel:${mgr}`}
+              >
+                Call Manager
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border bg-white p-5">
+          <h3 className="font-semibold">Email</h3>
+          <p className="mt-1">
+            <a className="underline" href="mailto:stay@kolakevilla.com">stay@kolakevilla.com</a>
+          </p>
+        </section>
+      </div>
+    </main>
+  );
+}
