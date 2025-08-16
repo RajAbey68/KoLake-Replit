@@ -1,19 +1,34 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from "next/server";
 
-export function middleware(request: NextRequest) {
-  const response = NextResponse.next()
-  
-  // Essential security headers - fully Edge Runtime compatible
-  response.headers.set('X-Content-Type-Options', 'nosniff')
-  response.headers.set('X-Frame-Options', 'DENY')
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  
-  return response
+const ALLOWED = (process.env.NEXT_PUBLIC_ALLOWED_ORIGINS || "")
+  .split(",").map(s => s.trim()).filter(Boolean);
+
+function setCors(res: NextResponse, origin: string) {
+  const allow = ALLOWED.length === 0 || ALLOWED.includes(origin);
+  res.headers.set("Access-Control-Allow-Origin", allow ? (origin || "*") : "null");
+  res.headers.set("Vary", "Origin");
+  res.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+}
+
+export function middleware(req: NextRequest) {
+  const url = req.nextUrl;
+  const origin = req.headers.get("origin") || "";
+
+  if (url.pathname.startsWith("/api") && req.method === "OPTIONS") {
+    const res = new NextResponse(null, { status: 204 });
+    setCors(res, origin);
+    return res;
+  }
+
+  const res = NextResponse.next();
+  res.headers.set("X-Frame-Options", "DENY");
+  res.headers.set("X-Content-Type-Options", "nosniff");
+  res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (url.pathname.startsWith("/api")) setCors(res, origin);
+  return res;
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
-}
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)"]
+};
