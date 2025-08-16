@@ -1,8 +1,8 @@
 # Vercel Auto-Deployment Setup for Ko Lake Villa
 
 ## Current Status
-Your Ko Lake Villa website repository: `https://github.com/RajAbey68/ko-lake-villa-website`
-Existing Vercel deployment: `https://ko-lake-villa-website.vercel.app`
+Your Ko Lake Villa website repository: `https://github.com/RajAbey68/KoLake-Replit`
+Existing Vercel deployment: Connected to correct GitHub repository
 
 ## Automatic Deployment Trigger Options
 
@@ -91,5 +91,5 @@ After setup, test by:
 Your Ko Lake Villa website will automatically deploy to Vercel whenever code is pushed to the main branch of your GitHub repository.
 
 ---
-**Repository**: https://github.com/RajAbey68/ko-lake-villa-website
-**Live Site**: https://ko-lake-villa-website.vercel.app
+**Repository**: https://github.com/RajAbey68/KoLake-Replit
+**Live Site**: Connected to Vercel project
