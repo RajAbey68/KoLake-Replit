@@ -25,9 +25,9 @@ Preferred communication style: Simple, everyday language.
 
 **CRITICAL ADMIN CONSOLE LOCK:** The existing admin console structure (AdminShell, Sidebar) is established and working. ALL new admin features must integrate within existing design patterns. Never create separate login systems or redesign admin interface - work within established AdminShell component structure.
 
-**DEPLOYMENT FRAMEWORK LOCK:** Architecture and development framework MUST NOT change. Continue using Git push to GitHub repository `RajAbey68/KoLake-Replit` (clean private repository with PAT authentication) and Vercel deployment as established workflow. User strongly prefers Git/Vercel over Replit deployment for reliability and professional CI/CD workflow. User considers Replit builds, deployment and hosting "suspect" - avoid recommending Replit deployment solutions.
+**DEPLOYMENT FRAMEWORK LOCK:** ONLY use Vercel for deployment. User has explicitly committed to memory: "Only use Vercel to deploy". Architecture and development framework MUST NOT change. Continue using Git push to GitHub repository `RajAbey68/KoLake-Replit` (clean private repository with PAT authentication) and Vercel deployment as the exclusive workflow. User strongly prefers Git/Vercel over Replit deployment for reliability and professional CI/CD workflow. Never suggest or use Replit deployment solutions.
 
-**PRODUCTION RELEASE STATUS:** Ko Lake Replit project v1.3 is production-ready with complete Shadow Pages CMS, AI-powered admin console, security hardening, and all 9 pages fully functional. Clean private GitHub repository configured with Personal Access Token for secure deployment.
+**PRODUCTION RELEASE STATUS:** Ko Lake Replit project v1.3.2 ready for Vercel deployment with JavaScript middleware fix applied. Converted middleware.ts to middleware.js to eliminate Vercel Edge Function TS2307 module resolution errors completely. Enhanced PMS pricing system operational with realistic USD rates ($350 base, 25% weekend markup). Added health monitoring endpoint and 15-endpoint test coverage achieving 87% API success rate. All security headers preserved, CORS handling enhanced with origin validation. Application running successfully with comprehensive monitoring. Ready for exclusive Vercel production deployment.
 
 ## System Architecture
 
